@@ -1,0 +1,6 @@
+ops:
+  fetch_top_movers:
+    config:
+      index: '$COMPX'
+      direction: 'up'
+      change: 'percent'
