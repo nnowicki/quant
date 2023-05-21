@@ -1,0 +1,14 @@
+name: sourcing 
+ 
+dependencies:
+    - python=3.10
+    - pip>=22.0
+    - poetry
+    - pandas
+    - dagster
+    - dagster-aws
+    - dagit
+    - boto3
+    - pip:
+        - flake8
+
