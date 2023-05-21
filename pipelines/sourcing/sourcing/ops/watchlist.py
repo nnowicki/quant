@@ -47,11 +47,6 @@ def fetch_top_movers(
         the asset key. This allows the data to be tracked, stored, and
         used for lineage tracking and further analysis.
 
-    Note:
-        - The function requires a valid TD Developer API key for
-        authentication.
-        Replace '<YOUR_TD_DEVELOPER_API_KEY>' with your actual API key.
-
     Usage:
         fetch_top_movers("SPX")  # Fetches the top movers for the S&P 500
         and saves it as an asset.
