@@ -12,7 +12,8 @@ pandas = "^2.0.1"
 python-dotenv = "^1.0.0"
 dagit = "^1.3.5"
 bios = "^0.1.2"
-
+polygon = "^1.1.0"
+dagster-slack = "^0.19.5"
 
 
 [build-system]

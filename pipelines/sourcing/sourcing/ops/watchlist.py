@@ -1,42 +1,33 @@
 '''Software defined assets for source pipeline'''
 # Python
+from datetime import datetime
 import os
-from typing import Optional
-
 # 3rd party
 import dagster as dg
-from dagster import Config
+from dagster_slack import SlackResource
 import dotenv
 import pandas as pd
 import requests
 
 # Project
+from constants import TD_BASE_URL, INDICES
 dotenv.load_dotenv(dotenv_path=dotenv.find_dotenv(), verbose=True)
 
 
-class DataFetchConfig(Config):
-    '''Dagster config for data fetch Ops'''
-    index: str
-    direction: str
-    change: str
-
-
-@dg.op(out=dg.Out({'top_movers': pd.DataFrame}))
-def fetch_top_movers(
-    context,
-    config: DataFetchConfig,
-) -> Optional[pd.DataFrame]:
+@dg.op(
+    name='fetch_top_pct_movers',
+    description='Pulls top movers list from TD',
+    out=dg.Out(
+        dagster_type=dg.Output[pd.DataFrame],
+        description='DataFrame of up/down Top Movers from an index'
+    ),
+    # required_resource_keys={'slack'},
+    # required_resource_keys={'s3'},
+)
+def fetch_top_pct_movers(slack: SlackResource) -> dg.Output[pd.DataFrame]:
     """
     Fetches the top movers in a stock index from the
     TD Developer API and materializes it as an asset.
-
-    Args:
-        context (context): The context object provided by Dagster
-        that contains information and utilities for the operation.
-        index (str): The stock index for which to fetch the top movers.
-
-    Returns:
-        None
 
     Raises:
         requests.exceptions.RequestException: If there is an error
@@ -51,26 +42,43 @@ def fetch_top_movers(
         fetch_top_movers("SPX")  # Fetches the top movers for the S&P 500
         and saves it as an asset.
     """
-    endpoint = f"{os.environ['TD_BASE_URL']}{config.index}/movers"
-    params = {
-        "apikey": os.environ['TD_KEY'],
-        "direction": config.direction,
-        "change": config.change,
-        "region": "us",
-    }
-    context.log.info(f"{context.op.name} entire config: {config}")
-    try:
-        response = requests.get(endpoint, params=params, timeout=20)
-        response.raise_for_status()
-        top_movers = pd.DataFrame.from_dict(response.json())
+    comined_params = zip(INDICES, ['up', 'down'])
+    logger = dg.get_dagster_logger()
+    results = []
+    for idx, direction in comined_params:
+        endpoint = f"{TD_BASE_URL}{idx}/movers"
+        params = {
+            "apikey": os.environ['TD_KEY'],
+            "direction": direction,
+            "change": 'percent',
+            "region": "us",
+        }
 
-        # Asset Materialization: Save top movers as an asset
-        context.log.info(f"Top movers in {config.index}: {top_movers}")
-        with context.asset('top_movers') as asset_:
-            asset_.materialization.metadata = top_movers
-        return top_movers
+        try:
+            response = requests.get(endpoint, params=params, timeout=20)
+            response.raise_for_status()
+            movers = pd.DataFrame.from_dict(response.json())
+            results.append(movers)
+        except requests.exceptions.RequestException as exp:
+            logger.error(
+                f"Error fetching top movers for {(idx,direction)}: {str(exp)}"
+            )
+    results_df = pd.concat(results)
+    # results_df.to_pickle(f'movers-{str(date.today())}.pkl')
 
-    except requests.exceptions.RequestException as exp:
-        context.log.error(
-            f"Error fetching top movers for {config.index}: {str(exp)}"
-        )
+    logger.info('Movers materialized!')
+    slack.get_client().chat_postMessage(
+        channel='#pipelines',
+        text=f'Movers Materialized at {round(datetime.now().timestamp())}'
+    )
+
+    return dg.Output(
+        output_name='result',
+        value=results_df,
+        metadata={
+            "num_records": len(results_df),
+            "preview": dg.MetadataValue.md(
+                results_df.head().to_markdown()
+            ),
+        },
+    )
