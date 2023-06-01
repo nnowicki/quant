@@ -1,10 +1,9 @@
 '''Software defined assets for source pipeline'''
 # Python
-from datetime import datetime
+from datetime import date
 import os
 # 3rd party
 import dagster as dg
-from dagster_slack import SlackResource
 import dotenv
 import pandas as pd
 import requests
@@ -21,10 +20,9 @@ dotenv.load_dotenv(dotenv_path=dotenv.find_dotenv(), verbose=True)
         dagster_type=dg.Output[pd.DataFrame],
         description='DataFrame of up/down Top Movers from an index'
     ),
-    # required_resource_keys={'slack'},
-    # required_resource_keys={'s3'},
+    required_resource_keys={'slack'}
 )
-def fetch_top_pct_movers(slack: SlackResource) -> dg.Output[pd.DataFrame]:
+def fetch_top_pct_movers(context) -> dg.Output[pd.DataFrame]:
     """
     Fetches the top movers in a stock index from the
     TD Developer API and materializes it as an asset.
@@ -64,13 +62,19 @@ def fetch_top_pct_movers(slack: SlackResource) -> dg.Output[pd.DataFrame]:
                 f"Error fetching top movers for {(idx,direction)}: {str(exp)}"
             )
     results_df = pd.concat(results)
-    # results_df.to_pickle(f'movers-{str(date.today())}.pkl')
+    results_df.to_pickle(
+        f'movers-{str(date.today().strftime("%Y-%m-%d"))}.pkl'
+    )
+
+    ( context.resources.slack
+        .get_client()
+        .chat_postMessage(
+            channel='#pipelines',
+            text=f'Materialized `{context.op.name}`'
+        )
+    )
 
     logger.info('Movers materialized!')
-    slack.get_client().chat_postMessage(
-        channel='#pipelines',
-        text=f'Movers Materialized at {round(datetime.now().timestamp())}'
-    )
 
     return dg.Output(
         output_name='result',
@@ -78,7 +82,7 @@ def fetch_top_pct_movers(slack: SlackResource) -> dg.Output[pd.DataFrame]:
         metadata={
             "num_records": len(results_df),
             "preview": dg.MetadataValue.md(
-                results_df.head().to_markdown()
+                results_df.head(20).to_markdown()
             ),
         },
     )

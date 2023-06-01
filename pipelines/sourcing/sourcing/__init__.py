@@ -12,12 +12,6 @@ LOAD_PATH = "~/Desktop/projects/quant/pipelines/sourcing/"
 defs = dg.Definitions(
     assets=dg.load_assets_from_modules([watchlist]),
     jobs=[fetch_top_pct_movers_job],
-    # jobs=[
-    #     dg.define_asset_job(
-    #         'fetch_top_pct_movers_job',
-    #         selection=dg.AssetSelection.all()
-    #     )
-    # ],
     schedules=[every_10_min],
     resources={
         "io_manager": dg.FilesystemIOManager(base_dir=LOAD_PATH),

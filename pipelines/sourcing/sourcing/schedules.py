@@ -5,9 +5,9 @@ from sourcing.jobs import fetch_top_pct_movers_job
 
 
 @schedule(
-    cron_schedule="*/1 * * * *",
+    cron_schedule='*/5 * * * *',
     job=fetch_top_pct_movers_job,
-    execution_timezone="US/Eastern",
+    execution_timezone='US/Eastern',
 )
 def every_10_min(context):
     """Example of how to setup a weekday schedule for a job."""
